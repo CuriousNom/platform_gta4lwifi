@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -63,7 +63,7 @@
 #define CODEC_EXT_CLK_RATE          9600000
 #define ADSP_STATE_READY_TIMEOUT_MS 3000
 #define DEV_NAME_STR_LEN            32
-//bug596190 wangchengqiang@wingtech.com 20201022,modify fo car aux cable function
+//Bug702114, qiuyonghui.wt, 20211121, modify for audio bring up
 #define WCD_MBHC_HS_V_MAX           1700
 #define ROULEUR_MBHC_HS_V_MAX       1700
 #define MAX_IMPED 60000
@@ -558,6 +558,7 @@ static struct snd_soc_codec_conf *msm_codec_conf;
 static struct snd_soc_card snd_soc_card_bengal_msm;
 static int dmic_0_1_gpio_cnt;
 static int dmic_2_3_gpio_cnt;
+static u32 wcd_datalane_mismatch;
 
 static void *def_wcd_mbhc_cal(void);
 static void *def_rouleur_mbhc_cal(void);
@@ -581,6 +582,7 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.key_code[5] = 0,
 	.key_code[6] = 0,
 	.key_code[7] = 0,
+    //Bug702114, qiuyonghui.wt, 20211121, modify for audio bringup
 	.linein_th = MAX_IMPED,
 	.moisture_en = false,
 	.mbhc_micbias = MIC_BIAS_2,
@@ -4333,7 +4335,11 @@ static int msm_int_audrx_init(struct snd_soc_pcm_runtime *rtd)
 				data = (char*) of_device_get_match_data(
 								&pdev->dev);
 			if (data != NULL) {
-				if (!strncmp(data, "wcd937x",
+				if (wcd_datalane_mismatch) {
+					bolero_set_port_map(component,
+						ARRAY_SIZE(sm_port_map_khaje),
+						sm_port_map_khaje);
+				} else if (!strncmp(data, "wcd937x",
 						sizeof("wcd937x"))) {
 					bolero_set_port_map(component,
 						ARRAY_SIZE(sm_port_map),
@@ -5056,6 +5062,20 @@ static struct snd_soc_dai_link msm_common_misc_fe_dai_links[] = {
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
 		.ops = &msm_cdc_dma_be_ops,
 	},
+	{/* hw:x,39 */
+		.name = "TX4_CDC_DMA Hostless",
+		.stream_name = "TX4_CDC_DMA Hostless",
+		.cpu_dai_name = "TX4_CDC_DMA_HOSTLESS",
+		.platform_name = "msm-pcm-hostless",
+		.dynamic = 1,
+		.dpcm_capture = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+	},
 };
 
 static struct snd_soc_dai_link msm_common_be_dai_links[] = {
@@ -5380,6 +5400,7 @@ static struct snd_soc_dai_link msm_mi2s_be_dai_links[] = {
 		.stream_name = "Primary MI2S Playback",
 		.cpu_dai_name = "msm-dai-q6-mi2s.0",
 		.platform_name = "msm-pcm-routing",
+		//Bug702114, qiuyonghui.wt, 20211119, modify for audio bringup
 		.codec_dai_name = "fs18xx-aif",
 		.codec_name = "fs18xx",
 		.no_pcm = 1,
@@ -6737,6 +6758,10 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	ret = msm_init_aux_dev(pdev, card);
 	if (ret)
 		goto err;
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"qcom,wcd-datalane-mismatch",
+			&wcd_datalane_mismatch);
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret == -EPROBE_DEFER) {

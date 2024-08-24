@@ -559,7 +559,6 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 
 	pr_debug("%s: enter insertion %d hph_status %x\n",
 		 __func__, insertion, mbhc->hph_status);
-//bug596190 wangchengqiang@wingtech.com 20201022,modify fo car aux cable function
 	if(jack_type == SND_JACK_LINEOUT){
 		jack_type = SND_JACK_HEADPHONE;
 		pr_err("%s: audiock LINEOUT to HEADPHONE insertion %d hph_status %x\n",__func__, insertion, mbhc->hph_status);
